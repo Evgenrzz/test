@@ -1,0 +1,30 @@
+# Python кэш файлы
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения
+venv/
+env/
+ENV/
+
+# IDE файлы
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Логи и временные файлы
+*.log
+debug_screenshot.png
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Файлы загрузок (если нужно исключить)
+downloads/
+files/
+
+# Конфигурационные файлы с паролями (если есть)
+# config_local.py
