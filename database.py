@@ -67,32 +67,30 @@ class DatabaseManager:
             print(f"❌ Ошибка проверки версии: {e}")
             return True, None
 
-    def add_to_dle_files(self, news_id, app_name, version, file_extension, file_path, file_size, checksum, download_dir):
+    def add_to_dle_files(self, news_id, app_name, version, file_extension, downloaded_filename, file_size, checksum, download_dir):
         """Добавляем запись в таблицу dle_files"""
         try:
             cursor = self.connection.cursor()
 
-            # Формируем читаемое имя файла (такое же как в file_tracking)
+            # Формируем читаемое имя файла для поля name
             # Переводим кириллицу в латиницу
             readable_name = self._transliterate_cyrillic(app_name)
             readable_filename = f"{readable_name} {version}{file_extension}"
             
-            print(f"📝 Формируем читаемое имя для dle_files: {readable_filename}")
+            print(f"📝 Формируем читаемое имя для dle_files.name: {readable_filename}")
 
-            # Формируем имя файла для сервера (в нижнем регистре с подчеркиваниями)
-            # Приводим к нижнему регистру и заменяем пробелы на подчеркивания
-            server_readable_name = readable_name.lower().replace(' ', '_').replace('.', '_')
-            server_version = version.replace('.', '_')
-            server_filename_clean = f"{server_readable_name}_{server_version}{file_extension}"
+            # Для onserver используем точно такое же имя как у загруженного файла
+            # Убираем расширение из downloaded_filename и добавляем timestamp
+            downloaded_name_without_ext = downloaded_filename.replace(file_extension, '')
             
             # Генерируем уникальное имя файла на сервере
             timestamp = str(int(time.time()))
-            server_filename = f"{timestamp[:8]}_{server_filename_clean}"
+            server_filename = f"{timestamp[:8]}_{downloaded_filename}"
 
             # Относительный путь для базы данных
             relative_path = f"{download_dir.name}/{server_filename}"
             
-            print(f"🗂️ Имя файла на сервере: {server_filename}")
+            print(f"🗂️ Имя файла на сервере (onserver): {server_filename}")
 
             insert_query = """
             INSERT INTO dle_files (news_id, name, onserver, author, date, dcount, size, checksum, driver, is_public)
@@ -102,7 +100,7 @@ class DatabaseManager:
             values = (
                 news_id,
                 readable_filename,  # Читаемое имя в поле name
-                relative_path,      # Путь с именем в нижнем регистре в поле onserver
+                relative_path,      # Путь с именем загруженного файла в поле onserver
                 'app4ok',
                 timestamp,
                 0,
@@ -142,7 +140,7 @@ class DatabaseManager:
 
             xfields = result[0]
 
-            # Формируем читаемое имя файла для attachment
+            # Формируем читаемое имя файла для attachment (такое же как в dle_files.name)
             # Переводим кириллицу в латиницу
             readable_name = self._transliterate_cyrillic(app_name)
             
@@ -216,13 +214,16 @@ class DatabaseManager:
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
 
+            # В version записываем ТОЛЬКО версию, без названия приложения
             values = (news_id, app_name, version, file_size, str(file_path), checksum, source_url)
 
             cursor.execute(insert_query, values)
             self.connection.commit()
             cursor.close()
 
-            print(f"✅ Добавлена запись в таблицу отслеживания с версией: {version}")
+            print(f"✅ Добавлена запись в таблицу отслеживания:")
+            print(f"   app_name: {app_name}")
+            print(f"   version: {version}")
             return True
 
         except Error as e:

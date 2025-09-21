@@ -66,8 +66,10 @@ class FileProcessor:
             print(f"⚠️ Ошибка получения версии со страницы: {e}")
             page_version = None
 
-        # Определяем финальную версию
+        # Определяем финальную версию (ТОЛЬКО номер версии)
         final_version = self.version_extractor.get_version(link_data['filename'], page_version)
+
+        print(f"🏷️ Финальная версия (только номер): {final_version}")
 
         # Проверяем нужно ли обновление
         need_update, existing_data = self.db.check_if_update_needed(
@@ -103,13 +105,13 @@ class FileProcessor:
             # Получаем расширение файла
             file_extension = os.path.splitext(downloaded_file.name)[1]
 
-            # Добавляем в dle_files с читаемым именем
+            # Добавляем в dle_files с правильными именами
             file_id = self.db.add_to_dle_files(
                 link_data['news_id'],
                 app_name,
                 final_version,
                 file_extension,
-                str(downloaded_file),
+                downloaded_file.name,  # Передаем имя загруженного файла
                 file_size,
                 checksum,
                 self.downloader.download_dir
@@ -119,7 +121,7 @@ class FileProcessor:
                 print("❌ Не удалось добавить файл в dle_files")
                 return False
 
-            # Обновляем dle_post с читаемым именем (расширение уже получено выше)
+            # Обновляем dle_post с читаемым именем
             success = self.db.update_dle_post(
                 link_data['news_id'],
                 file_id,
@@ -132,11 +134,11 @@ class FileProcessor:
                 print("❌ Не удалось обновить dle_post")
                 return False
 
-            # Добавляем в таблицу отслеживания с правильной версией
+            # Добавляем в таблицу отслеживания с ТОЛЬКО версией
             self.db.add_to_tracking(
                 link_data['news_id'],
                 app_name,
-                final_version,  # Теперь здесь только версия, например "1.8.3"
+                final_version,  # ТОЛЬКО версия, например "1.8.3"
                 file_size,
                 downloaded_file,
                 checksum,
@@ -202,9 +204,11 @@ class FileProcessor:
 async def main():
     """Главная функция"""
     print("🚀 Запуск системы обработки файлов")
-    print("📋 Исправлена проблема с записью версий в БД")
-    print("🔧 Теперь в поле version записывается только номер версии (например: 1.8.3)")
-    print("🔧 Загруженные файлы и записи в onserver имеют одинаковые имена в нижнем регистре")
+    print("📋 Исправлены все проблемы с записью данных в БД:")
+    print("   ✅ file_tracking.version - только номер версии")
+    print("   ✅ dle_files.onserver - имя как у загруженного файла")
+    print("   ✅ dle_files.name - читаемое имя без дублирования")
+    print("   ✅ dle_post.apk-original - такое же как dle_files.name")
 
     processor = FileProcessor()
 
