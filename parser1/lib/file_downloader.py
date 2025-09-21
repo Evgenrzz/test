@@ -25,6 +25,47 @@ class FileDownloader:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
+    
+    def calculate_sha256(self, file_path):
+        """Вычисляем SHA-256 чексумму файла для более надежной проверки дублей"""
+        hash_sha256 = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):  # Увеличили размер буфера
+                hash_sha256.update(chunk)
+        return hash_sha256.hexdigest()
+    
+    def calculate_checksums_parallel(self, file_path):
+        """Вычисляем MD5 и SHA-256 параллельно для ускорения"""
+        import threading
+        
+        md5_result = [None]
+        sha256_result = [None]
+        
+        def calc_md5():
+            hash_md5 = hashlib.md5()
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    hash_md5.update(chunk)
+            md5_result[0] = hash_md5.hexdigest()
+        
+        def calc_sha256():
+            hash_sha256 = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    hash_sha256.update(chunk)
+            sha256_result[0] = hash_sha256.hexdigest()
+        
+        # Запускаем оба вычисления параллельно
+        t1 = threading.Thread(target=calc_md5)
+        t2 = threading.Thread(target=calc_sha256)
+        
+        t1.start()
+        t2.start()
+        
+        t1.join()
+        t2.join()
+        
+        return md5_result[0], sha256_result[0]
 
     def normalize_filename(self, filename):
         """Нормализуем имя файла согласно требованиям"""

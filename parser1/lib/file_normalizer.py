@@ -45,8 +45,8 @@ class FileNormalizer:
         """Нормализуем имя файла согласно требованиям"""
         print(f"📝 Исходное имя файла: {filename}")
 
-        # Убираем "_apkcombo.com" из названия
-        filename = filename.replace('_apkcombo.com', '')
+        # Убираем суффиксы источников
+        filename = FileNormalizer.clean_source_suffixes(filename)
 
         # Разделяем имя файла и расширение
         name_part, extension = os.path.splitext(filename)
@@ -79,12 +79,22 @@ class FileNormalizer:
         return normalized_filename
     
     @staticmethod
+    def clean_source_suffixes(filename):
+        """Убираем суффиксы источников из имени файла"""
+        # Убираем суффиксы источников
+        filename = filename.replace('_apkpure', '')
+        filename = filename.replace('_apkcombo', '')
+        filename = filename.replace('_apkcombo.com', '')
+        
+        return filename
+    
+    @staticmethod
     def format_filename_for_attachment(filename):
         """Форматируем имя файла для поля apk-original"""
         print(f"📝 Форматируем для attachment: {filename}")
 
-        # Убираем "_apkpure" из названия
-        filename = filename.replace('_apkpure', '')
+        # Убираем суффиксы источников
+        filename = FileNormalizer.clean_source_suffixes(filename)
         
         # Разделяем имя файла и расширение
         name_part, extension = os.path.splitext(filename)
