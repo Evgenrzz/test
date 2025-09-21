@@ -6,7 +6,7 @@ import time
 import re
 import mysql.connector
 from mysql.connector import Error
-from config import DB_CONFIG, CREATE_TRACKING_TABLE
+from .config import DB_CONFIG, CREATE_TRACKING_TABLE
 
 
 class DatabaseManager:

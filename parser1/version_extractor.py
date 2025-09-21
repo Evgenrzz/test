@@ -4,7 +4,7 @@
 """
 import re
 from playwright.async_api import async_playwright
-from config import BROWSER_ARGS, USER_AGENT, CLOUDFLARE_TIMEOUT, PAGE_LOAD_TIMEOUT
+from .config import BROWSER_ARGS, USER_AGENT, CLOUDFLARE_TIMEOUT, PAGE_LOAD_TIMEOUT
 
 
 class VersionExtractor:
