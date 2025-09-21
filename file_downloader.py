@@ -46,14 +46,49 @@ class FileDownloader:
         name_part = name_part.lower()
         extension = extension.lower()
 
+        # Переводим кириллицу в латиницу
+        name_part = self._transliterate_cyrillic(name_part)
+
+        # Заменяем +-+ на подчеркивания
+        name_part = name_part.replace('+-+', '_')
+        name_part = name_part.replace('+', '_')
+        name_part = name_part.replace('-', '_')
+
         # Заменяем точки на подчеркивания в имени файла (но не в расширении)
         name_part = name_part.replace('.', '_')
+
+        # Убираем множественные подчеркивания
+        name_part = re.sub(r'_+', '_', name_part).strip('_')
 
         # Собираем обратно с одной точкой перед расширением
         normalized_filename = f"{name_part}{extension}"
 
         print(f"📝 Нормализованное имя: {normalized_filename}")
         return normalized_filename
+
+    def _transliterate_cyrillic(self, text):
+        """Переводим кириллицу в латиницу"""
+        cyrillic_to_latin = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+            'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+            'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+            'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+            'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+            'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
+            'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+            'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+            'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch',
+            'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
+        }
+        
+        result = ""
+        for char in text:
+            if char in cyrillic_to_latin:
+                result += cyrillic_to_latin[char]
+            else:
+                result += char
+        
+        return result
 
     def format_filename_for_attachment(self, filename):
         """Форматируем имя файла для поля apk-original"""
@@ -74,6 +109,7 @@ class FileDownloader:
         name_part = re.sub(r'\s+', ' ', name_part).strip()
 
         # Восстанавливаем точки в версии (ищем паттерны типа "1 8 3" и заменяем на "1.8.3")
+        # Ищем последовательности цифр разделенных пробелами в конце строки
         version_pattern = r'(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?$'
         match = re.search(version_pattern, name_part)
         if match:
@@ -96,7 +132,6 @@ class FileDownloader:
             try:
                 current_url = page.url
                 page_title = await page.title()
-                
                 # Проверяем индикаторы Cloudflare
                 cf_indicators = [
                     "div.cf-browser-verification",
@@ -105,7 +140,6 @@ class FileDownloader:
                     "h1:has-text('Checking your browser')",
                     "h1:has-text('Just a moment')"
                 ]
-                
                 is_cf_active = False
                 for indicator in cf_indicators:
                     try:
@@ -115,31 +149,25 @@ class FileDownloader:
                             break
                     except:
                         continue
-
                 # Проверяем по заголовку и URL
                 if ("just a moment" in page_title.lower() or
                     "checking" in page_title.lower() or
                     "cloudflare" in current_url.lower()):
                     is_cf_active = True
-
                 if not is_cf_active:
                     print("✅ Cloudflare проверка пройдена или отсутствует")
                     return True
-
                 if i % 10 == 0:
                     print(f"⏳ Ждем Cloudflare... ({i+1}/{max_wait})")
-
             except Exception as e:
                 print(f"   Ошибка при проверке Cloudflare: {e}")
                 continue
-
         print("⚠️ Превышено время ожидания Cloudflare")
         return False
 
     async def download_file_from_r2_url(self, page, r2_url):
         """Скачиваем файл по r2 ссылке"""
         print(f"🔗 Переходим по r2 ссылке для скачивания...")
-        
         # Устанавливаем обработчик загрузки ДО перехода на страницу
         download_started = False
         download_obj = None
@@ -154,7 +182,7 @@ class FileDownloader:
 
         # Пытаемся перейти на страницу, но ожидаем, что может начаться загрузка
         try:
-            await page.goto(r2_url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(r2_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
         except Exception as e:
             if "Download is starting" in str(e):
                 print("✅ Загрузка началась сразу при переходе")
@@ -165,7 +193,7 @@ class FileDownloader:
         # Если загрузка не началась сразу, ждем прохождения Cloudflare
         if not download_started:
             print("🔄 Загрузка не началась сразу, проверяем Cloudflare...")
-            await self.wait_for_cloudflare(page, max_wait=120)
+            await self.wait_for_cloudflare(page, max_wait=CLOUDFLARE_TIMEOUT)
             # Ждем начала загрузки еще немного
             for i in range(DOWNLOAD_TIMEOUT):
                 if download_started:
@@ -212,7 +240,7 @@ class FileDownloader:
             return None
 
     async def download_from_apkcombo(self, app_url):
-        """Скачиваем файл с apkcombo.com и извлекаем версию со страницы"""
+        """Скачиваем файл с apkcombo.com"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
@@ -227,13 +255,9 @@ class FileDownloader:
             try:
                 print(f"📱 Открываем страницу приложения: {app_url}")
                 await page.goto(app_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-                
                 # Ждем прохождения Cloudflare если есть
-                await self.wait_for_cloudflare(page, max_wait=60)
+                await self.wait_for_cloudflare(page, max_wait=CLOUDFLARE_TIMEOUT)
                 await asyncio.sleep(3)
-
-                # Извлекаем версию со страницы ДО скачивания
-                page_version = await self._extract_version_from_current_page(page)
 
                 # Шаг 1: Ищем ссылку "Скачать APK"
                 print("🔍 Ищем ссылку 'Скачать APK'...")
@@ -245,7 +269,6 @@ class FileDownloader:
                     "a[href*='/download/']",
                     "div.download a.button"
                 ]
-                
                 for selector in selectors_to_try:
                     try:
                         print(f"   Пробуем селектор: {selector}")
@@ -263,14 +286,12 @@ class FileDownloader:
                     except Exception as e:
                         print(f"     Ошибка с селектором {selector}: {e}")
                         continue
-                        
                 if not download_link:
                     raise Exception("Не удалось найти ссылку 'Скачать APK'")
 
                 href = await download_link.get_attribute("href")
                 if not href:
                     raise Exception("Не удалось получить href ссылки")
-                    
                 # Приводим ссылку к полному виду
                 if href.startswith('/'):
                     download_page_url = f"https://apkcombo.com{href}"
@@ -279,8 +300,8 @@ class FileDownloader:
                 print(f"➡️ Ссылка на страницу загрузки: {download_page_url}")
 
                 # Шаг 2: Переходим на страницу загрузки
-                await page.goto(download_page_url, wait_until="domcontentloaded", timeout=120000)
-                await self.wait_for_cloudflare(page, max_wait=60)
+                await page.goto(download_page_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
+                await self.wait_for_cloudflare(page, max_wait=CLOUDFLARE_TIMEOUT)
                 await asyncio.sleep(5)
 
                 # Шаг 3: Ищем первый вариант файла в ul.file-list
@@ -301,7 +322,6 @@ class FileDownloader:
                             break
                     except:
                         continue
-                        
                 if not variant:
                     raise Exception("Не удалось найти варианты загрузки в ul.file-list")
 
@@ -310,11 +330,11 @@ class FileDownloader:
                     file_type_element = await variant.query_selector("span.vtype span, .type-apk, .type-xapk")
                     file_type = await file_type_element.inner_text() if file_type_element else "APK"
                     version_element = await variant.query_selector("span.vername")
-                    download_version = await version_element.inner_text() if version_element else "Unknown"
-                    print(f"📦 Найден файл: {download_version} ({file_type})")
+                    version = await version_element.inner_text() if version_element else "Unknown"
+                    print(f"📦 Найден файл: {version} ({file_type})")
                 except:
                     file_type = "APK"
-                    download_version = "Unknown"
+                    version = "Unknown"
 
                 # Получаем r2 ссылку
                 r2_href = await variant.get_attribute("href")
@@ -330,11 +350,7 @@ class FileDownloader:
 
                 # Шаг 4: Скачиваем файл по r2 ссылке
                 downloaded_file = await self.download_file_from_r2_url(page, r2_url)
-                
-                # Возвращаем файл и версию со страницы (приоритет над версией из загрузки)
-                final_version = page_version or download_version
-                return downloaded_file, final_version
-                
+                return downloaded_file, version
             except Exception as e:
                 print(f"❌ Ошибка: {e}")
                 print(f"🔍 Текущий URL: {page.url}")
@@ -349,40 +365,4 @@ class FileDownloader:
                 await context.close()
                 await browser.close()
                 print("🔒 Браузер закрыт")
-
-    async def _extract_version_from_current_page(self, page):
-        """Извлекаем версию с текущей страницы"""
-        try:
-            # Ищем версию в различных местах на странице
-            version_selectors = [
-                "div.version",           # <div class="version">1.8.3</div>
-                ".version",              # любой элемент с классом version
-                "[class*='version']",    # элементы с классом содержащим version
-                ".app-version",          # альтернативный класс
-                ".current-version",      # еще один вариант
-            ]
-
-            for selector in version_selectors:
-                try:
-                    element = await page.query_selector(selector)
-                    if element:
-                        version_text = await element.inner_text()
-                        version_text = version_text.strip()
-                        
-                        # Извлекаем версию из текста
-                        version_match = re.search(r'(\d+\.\d+\.\d+(?:\.\d+)?)', version_text)
-                        if version_match:
-                            version = version_match.group(1)
-                            print(f"✅ Найдена версия на странице: {version}")
-                            return version
-                except Exception as e:
-                    print(f"   Ошибка с селектором {selector}: {e}")
-                    continue
-
-            print("⚠️ Версия на странице не найдена")
-            return None
-
-        except Exception as e:
-            print(f"❌ Ошибка извлечения версии со страницы: {e}")
-            return None
 

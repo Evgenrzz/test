@@ -98,6 +98,7 @@ class FileProcessor:
             print(f"📊 Размер файла: {file_size} байт")
             print(f"🔐 Чексумма: {checksum}")
             print(f"🏷️ Финальная версия для БД: {final_version}")
+            print(f"📁 Загруженный файл: {downloaded_file.name}")
 
             # Получаем расширение файла
             file_extension = os.path.splitext(downloaded_file.name)[1]
@@ -203,6 +204,7 @@ async def main():
     print("🚀 Запуск системы обработки файлов")
     print("📋 Исправлена проблема с записью версий в БД")
     print("🔧 Теперь в поле version записывается только номер версии (например: 1.8.3)")
+    print("🔧 Загруженные файлы и записи в onserver имеют одинаковые имена в нижнем регистре")
 
     processor = FileProcessor()
 
@@ -224,3 +226,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

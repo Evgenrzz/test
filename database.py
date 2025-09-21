@@ -79,10 +79,10 @@ class DatabaseManager:
             
             print(f"📝 Формируем читаемое имя для dle_files: {readable_filename}")
 
-            # Формируем имя файла для сервера (без пробелов и точек)
-            server_readable_name = readable_name.replace(' ', '_').replace('.', '_')
+            # Формируем имя файла для сервера (в нижнем регистре с подчеркиваниями)
+            # Приводим к нижнему регистру и заменяем пробелы на подчеркивания
+            server_readable_name = readable_name.lower().replace(' ', '_').replace('.', '_')
             server_version = version.replace('.', '_')
-            server_extension = file_extension.replace('.', '_')
             server_filename_clean = f"{server_readable_name}_{server_version}{file_extension}"
             
             # Генерируем уникальное имя файла на сервере
@@ -102,7 +102,7 @@ class DatabaseManager:
             values = (
                 news_id,
                 readable_filename,  # Читаемое имя в поле name
-                relative_path,      # Путь с читаемым именем в поле onserver
+                relative_path,      # Путь с именем в нижнем регистре в поле onserver
                 'app4ok',
                 timestamp,
                 0,
@@ -228,3 +228,4 @@ class DatabaseManager:
         except Error as e:
             print(f"❌ Ошибка добавления в tracking: {e}")
             return False
+
