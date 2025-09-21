@@ -8,16 +8,18 @@ import os
 import re
 from pathlib import Path
 from datetime import datetime
-from .config import LINKS_FILE, BASE_DOWNLOAD_DIR
+from .config import LINKS_FILE, BASE_DOWNLOAD_DIR, ENABLE_SHA256_CHECK, ENABLE_FUZZY_MATCHING, ENABLE_SIZE_CHECK, ENABLE_DETAILED_LOGGING
 from .database import DatabaseManager
 from .version_extractor import VersionExtractor
 from .lib.file_downloader import FileDownloader
 from .lib.apkpure_downloader import APKPureDownloader
+from .lib.duplicate_analyzer import DuplicateAnalyzer
 
 
 class FileProcessor:
     def __init__(self):
-        self.db = DatabaseManager()
+        self.analyzer = DuplicateAnalyzer()
+        self.db = DatabaseManager(analyzer=self.analyzer)
         self.version_extractor = VersionExtractor()
         
         # Создаем папку для текущего месяца
@@ -92,13 +94,23 @@ class FileProcessor:
 
         print(f"🏷️ Финальная версия (только номер): {clean_version_for_check}")
 
-        # Проверяем нужно ли обновление
+        # Извлекаем дополнительную информацию
+        package_name = self.version_extractor.extract_package_name_from_url(link_data['url'])
+        source_priority = self.version_extractor.get_source_priority(link_data['url'])
+        
+        print(f"📦 Package name: {package_name or 'N/A'}")
+        print(f"⭐ Приоритет источника: {source_priority}")
+
+        # Проверяем нужно ли обновление с улучшенной проверкой дублей
         need_update, existing_data = self.db.check_if_update_needed(
-            link_data['news_id'], app_name, clean_version_for_check
+            link_data['news_id'], app_name, clean_version_for_check, 
+            package_name=package_name
         )
 
         if not need_update:
             print("⏭️ Пропускаем, версия актуальна")
+            self.analyzer.log_file_processed(app_name, clean_version_for_check, 0, 
+                                           link_data['url'], is_new=False)
             return True
 
         # Определяем тип парсера и скачиваем файл
@@ -128,17 +140,59 @@ class FileProcessor:
 
             # Получаем информацию о файле
             file_size = downloaded_file.stat().st_size
-            checksum = self.downloader.calculate_checksum(downloaded_file)
+            
+            # Вычисляем чексуммы
+            if ENABLE_SHA256_CHECK:
+                print("🔐 Вычисляем чексуммы...")
+                checksum, sha256_hash = self.downloader.calculate_checksums_parallel(downloaded_file)
+            else:
+                print("🔐 Вычисляем MD5...")
+                checksum = self.downloader.calculate_checksum(downloaded_file)
+                sha256_hash = None
 
             print(f"📊 Размер файла: {file_size} байт")
-            print(f"🔐 Чексумма: {checksum}")
+            print(f"🔐 MD5: {checksum}")
+            if sha256_hash:
+                print(f"🔐 SHA-256: {sha256_hash[:16]}...")
             print(f"🏷️ Финальная версия для БД: {clean_version_for_check}")
             print(f"📁 Загруженный файл: {downloaded_file.name}")
+            
+            # Дополнительная проверка дублей по размеру файла
+            if ENABLE_SIZE_CHECK:
+                size_duplicate = self.db.check_duplicate_by_size(file_size, tolerance_percent=5)
+                if size_duplicate:
+                    print(f"⚠️ Найден файл похожего размера: {size_duplicate[1]} v{size_duplicate[2]}")
+                    # Если это тот же файл по SHA-256, пропускаем
+                    if sha256_hash and size_duplicate[6] == sha256_hash:
+                        print("🔍 Это тот же файл по содержимому, пропускаем")
+                        if ENABLE_DETAILED_LOGGING:
+                            self.analyzer.log_duplicate_found('size', size_duplicate[1], size_duplicate[2], 
+                                                            'Совпадение по размеру и содержимому')
+                        return True
+                    else:
+                        if ENABLE_DETAILED_LOGGING:
+                            self.analyzer.log_duplicate_found('size', size_duplicate[1], size_duplicate[2], 
+                                                            f'Совпадение по размеру (отклонение: {abs(size_duplicate[3] - file_size)/file_size*100:.1f}%)')
 
             # Получаем расширение файла
             file_extension = os.path.splitext(downloaded_file.name)[1]
             
+            # Очищаем имя файла от суффиксов источников
+            from .lib.file_normalizer import FileNormalizer
+            clean_filename = FileNormalizer.clean_source_suffixes(downloaded_file.name)
+            
+            # Переименовываем файл на диске
+            if clean_filename != downloaded_file.name:
+                new_file_path = self.download_dir / clean_filename
+                downloaded_file.rename(new_file_path)
+                downloaded_file = new_file_path
+                print(f"📁 Файл переименован: {downloaded_file.name}")
+            
             print(f"🏷️ Чистая версия для БД: {clean_version_for_check}")
+            
+            # Удаляем старый файл из поля apk-original перед добавлением нового
+            print("🗑️ Проверяем наличие старого файла в поле apk-original...")
+            self.db.delete_old_file_from_apk_original(link_data['news_id'])
             
             # Добавляем в dle_files с правильными именами
             file_id = self.db.add_to_dle_files(
@@ -146,7 +200,7 @@ class FileProcessor:
                 app_name,
                 clean_version_for_check,
                 file_extension,
-                downloaded_file.name,  # Передаем имя загруженного файла
+                clean_filename,  # Передаем очищенное имя файла
                 file_size,
                 checksum,
                 self.download_dir
@@ -169,7 +223,7 @@ class FileProcessor:
                 print("❌ Не удалось обновить dle_post")
                 return False
 
-            # Добавляем в таблицу отслеживания с ТОЛЬКО версией
+            # Добавляем в таблицу отслеживания с улучшенными полями
             self.db.add_to_tracking(
                 link_data['news_id'],
                 app_name,
@@ -177,14 +231,20 @@ class FileProcessor:
                 file_size,
                 downloaded_file,
                 checksum,
-                link_data['url']
+                link_data['url'],
+                sha256_hash=sha256_hash,
+                package_name=package_name,
+                source_priority=source_priority
             )
 
-            print(f"✅ Файл {downloaded_file.name} успешно обработан с версией {clean_version_for_check}!")
+            print(f"✅ Файл {clean_filename} успешно обработан с версией {clean_version_for_check}!")
+            self.analyzer.log_file_processed(app_name, clean_version_for_check, file_size, 
+                                           link_data['url'], is_new=True)
             return True
 
         except Exception as e:
             print(f"❌ Ошибка обработки файла: {e}")
+            self.analyzer.log_processing_error(str(e), f"для {app_name}")
             return False
 
     async def process_links_file(self):
@@ -199,6 +259,9 @@ class FileProcessor:
             lines = f.readlines()
 
         print(f"📊 Найдено {len(lines)} строк")
+
+        # Начинаем анализ дублей
+        self.analyzer.start_processing()
 
         processed = 0
         errors = 0
@@ -228,6 +291,9 @@ class FileProcessor:
                 print(f"❌ Критическая ошибка обработки строки {i}: {e}")
                 errors += 1
                 continue
+
+        # Завершаем анализ дублей
+        self.analyzer.end_processing()
 
         print(f"\n{'='*50}")
         print(f"📊 ИТОГИ:")

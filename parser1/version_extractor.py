@@ -5,43 +5,18 @@
 import re
 from playwright.async_api import async_playwright
 from .config import BROWSER_ARGS, USER_AGENT, CLOUDFLARE_TIMEOUT, PAGE_LOAD_TIMEOUT
+from .lib.version_utils import VersionUtils
 
 
 class VersionExtractor:
     def extract_version_from_filename(self, filename):
-        """Извлекаем версию из имени файла"""
-        # Ищем паттерн версии в имени файла
-        version_patterns = [
-            r'_(\d+\.\d+\.\d+)',  # _5.0.0
-            r'_(\d+\.\d+)',       # _5.0
-            r'v(\d+\.\d+\.\d+)',  # v5.0.0
-            r'(\d+\.\d+\.\d+)',   # 5.0.0
-        ]
-
-        for pattern in version_patterns:
-            match = re.search(pattern, filename)
-            if match:
-                return match.group(1)
-
-        return "1.0.0"  # Версия по умолчанию
+        """Извлекаем версию из имени файла с улучшенной обработкой"""
+        version = VersionUtils.extract_version_from_text(filename)
+        return VersionUtils.normalize_version(version) if version else "1.0.0"
 
     def extract_app_name_from_filename(self, filename):
-        """Извлекаем название приложения из имени файла"""
-        # Убираем расширение
-        name = filename.replace('.xapk', '').replace('.apk', '')
-        
-        # Убираем версию если есть
-        name = re.sub(r'_\d+\.\d+.*$', '', name)
-        
-        # Обрабатываем символы +-+
-        name = name.replace('+-+', ' ')
-        name = name.replace('+', ' ')
-        name = name.replace('-', ' ')
-        
-        # Убираем множественные пробелы
-        name = re.sub(r'\s+', ' ', name).strip()
-        
-        return name
+        """Извлекаем название приложения из имени файла с улучшенной обработкой"""
+        return VersionUtils.extract_app_name_from_filename(filename)
 
     async def extract_version_from_page(self, url):
         """Извлекаем версию со страницы приложения"""
@@ -145,26 +120,11 @@ class VersionExtractor:
         return False
 
     def extract_clean_version(self, version_text):
-        """Извлекаем только номер версии из любого текста"""
-        if not version_text:
-            return "1.0.0"
-        
-        # Ищем паттерн версии в тексте
-        version_patterns = [
-            r'(\d+\.\d+\.\d+\.\d+)',  # 1.2.3.4
-            r'(\d+\.\d+\.\d+)',       # 1.2.3
-            r'(\d+\.\d+)',            # 1.2
-        ]
-
-        for pattern in version_patterns:
-            match = re.search(pattern, version_text)
-            if match:
-                clean_version = match.group(1)
-                print(f"🧹 Извлечена чистая версия: {clean_version} из '{version_text}'")
-                return clean_version
-
-        print(f"⚠️ Не удалось извлечь версию из '{version_text}', используем 1.0.0")
-        return "1.0.0"
+        """Извлекаем только номер версии из любого текста с улучшенной обработкой"""
+        version = VersionUtils.extract_version_from_text(version_text)
+        clean_version = VersionUtils.normalize_version(version) if version else "1.0.0"
+        print(f"🧹 Извлечена чистая версия: {clean_version} из '{version_text}'")
+        return clean_version
 
     def get_version(self, filename, page_version=None):
         """Определяем финальную версию для использования"""
@@ -178,3 +138,11 @@ class VersionExtractor:
         clean_file_version = self.extract_clean_version(file_version)
         print(f"📁 Используем версию из файла: {clean_file_version}")
         return clean_file_version
+    
+    def extract_package_name_from_url(self, url):
+        """Извлекаем package name из URL"""
+        return VersionUtils.extract_package_name_from_url(url)
+    
+    def get_source_priority(self, source_url):
+        """Получаем приоритет источника"""
+        return VersionUtils.get_source_priority(source_url)
