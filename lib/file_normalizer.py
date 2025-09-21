@@ -83,6 +83,9 @@ class FileNormalizer:
         """Форматируем имя файла для поля apk-original"""
         print(f"📝 Форматируем для attachment: {filename}")
 
+        # Убираем "_apkpure" из названия
+        filename = filename.replace('_apkpure', '')
+        
         # Разделяем имя файла и расширение
         name_part, extension = os.path.splitext(filename)
 
