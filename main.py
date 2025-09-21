@@ -6,7 +6,9 @@
 import asyncio
 import os
 import re
-from config import LINKS_FILE
+from pathlib import Path
+from datetime import datetime
+from config import LINKS_FILE, BASE_DOWNLOAD_DIR
 from database import DatabaseManager
 from version_extractor import VersionExtractor
 from lib.file_downloader import FileDownloader
@@ -17,7 +19,18 @@ class FileProcessor:
     def __init__(self):
         self.db = DatabaseManager()
         self.version_extractor = VersionExtractor()
-        self.downloader = FileDownloader()
+        
+        # Создаем папку для текущего месяца
+        self.download_dir = self.get_current_download_dir()
+        self.downloader = FileDownloader(self.download_dir)
+    
+    def get_current_download_dir(self):
+        """Получаем папку для текущего месяца в формате год-месяц"""
+        now = datetime.now()
+        month_dir = f"{now.year}-{now.month:02d}"
+        full_path = Path(BASE_DOWNLOAD_DIR) / month_dir
+        full_path.mkdir(parents=True, exist_ok=True)
+        return full_path
 
     def parse_link_line(self, line):
         """Парсим строку из файла step4_links.txt"""
@@ -96,7 +109,7 @@ class FileProcessor:
             elif 'apkpure.com' in link_data['url']:
                 print("🔧 Используем парсер APKPure")
                 # Создаем APKPure downloader с той же папкой загрузки
-                apkpure_downloader = APKPureDownloader(self.downloader.download_dir)
+                apkpure_downloader = APKPureDownloader(self.download_dir)
                 downloaded_file, download_version = await apkpure_downloader.download_from_apkpure(link_data['url'])
             else:
                 print(f"❌ Неподдерживаемый сайт: {link_data['url']}")
@@ -136,7 +149,7 @@ class FileProcessor:
                 downloaded_file.name,  # Передаем имя загруженного файла
                 file_size,
                 checksum,
-                self.downloader.download_dir
+                self.download_dir
             )
 
             if not file_id:
