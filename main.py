@@ -9,8 +9,8 @@ import re
 from config import LINKS_FILE
 from database import DatabaseManager
 from version_extractor import VersionExtractor
-from file_downloader import FileDownloader
-from apkpure_downloader import APKPureDownloader
+from lib.file_downloader import FileDownloader
+from lib.apkpure_downloader import APKPureDownloader
 
 
 class FileProcessor:

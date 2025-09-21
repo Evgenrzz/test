@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright
 from config import BROWSER_ARGS, USER_AGENT, BASE_DOWNLOAD_DIR, CLOUDFLARE_TIMEOUT, PAGE_LOAD_TIMEOUT, DOWNLOAD_TIMEOUT
-from file_normalizer import FileNormalizer
+from .file_normalizer import FileNormalizer
 
 
 class FileDownloader:

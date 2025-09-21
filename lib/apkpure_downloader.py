@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 from config import BROWSER_ARGS, USER_AGENT, CLOUDFLARE_TIMEOUT, PAGE_LOAD_TIMEOUT, DOWNLOAD_TIMEOUT
-from file_normalizer import FileNormalizer
+from .file_normalizer import FileNormalizer
 
 
 class APKPureDownloader:
@@ -191,23 +191,22 @@ class APKPureDownloader:
     async def extract_version_from_page(self, app_url):
         """Extract version from APKPure app page"""
         try:
-            # Убираем /download из URL если есть
+            # Remove /download from URL if present
             page_url = app_url.replace('/download', '')
             
-            print(f"🌐 Получаем версию со страницы APKPure: {page_url}")
-            await self.page.goto(page_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
+            print(f"🔍 Getting version from page: {page_url}")
+            await self.page.goto(page_url, wait_until='domcontentloaded', timeout=PAGE_LOAD_TIMEOUT)
             
-            # Ждем загрузки страницы
-            await self.page.wait_for_timeout(3000)
+            # Wait for page load
+            await self.page.wait_for_timeout(2000)
             
-            # Ищем версию в различных местах
+            # Search for version in various places
             version_selectors = [
-                ".version-number",
-                ".version",
-                "[class*='version']",
-                ".app-version",
-                ".details-sdk .version",
-                ".details-version"
+                '.version-number',
+                '.version',
+                '[data-dt-version]',
+                '.apk-version',
+                '.app-version'
             ]
             
             for selector in version_selectors:
@@ -215,20 +214,20 @@ class APKPureDownloader:
                     element = await self.page.query_selector(selector)
                     if element:
                         version_text = await element.inner_text()
-                        # Извлекаем только номер версии
+                        # Extract only version number
                         version_match = re.search(r'(\d+\.\d+\.\d+)', version_text)
                         if version_match:
                             version = version_match.group(1)
-                            print(f"✅ Найдена версия на странице APKPure: {version}")
+                            print(f"✅ Found version on APKPure page: {version}")
                             return version
                 except:
                     continue
             
-            print("⚠️ Версия не найдена на странице APKPure")
+            print("⚠️ Version not found on APKPure page")
             return None
             
         except Exception as e:
-            print(f"❌ Ошибка получения версии со страницы APKPure: {e}")
+            print(f"❌ Error getting version from APKPure page: {e}")
             return None
 
     async def download_file(self, file_type, package_name):
