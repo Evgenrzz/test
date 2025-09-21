@@ -61,11 +61,13 @@ python main.py
 **Было (проблема):**
 ```
 version: "Dream+Mania+-+Игры+Матч+3_1.8.3_apkcombo.com"
+apk-original: "[attachment=879:dream+mania+-+игры+матч+3_1_8_3.xapk]"
 ```
 
 **Стало (исправлено):**
 ```
 version: "1.8.3"
+apk-original: "[attachment=879:dream mania igry match 3 1.8.3.xapk]"
 ```
 
 ## Особенности
@@ -90,4 +92,3 @@ version: "1.8.3"
 - `file_tracking` - отслеживание скачанных файлов
 - `dle_files` - файлы DLE
 - `dle_post` - посты DLE (обновление поля `apk-original`)
-

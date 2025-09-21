@@ -109,7 +109,7 @@ class DatabaseManager:
             print(f"❌ Ошибка добавления в dle_files: {e}")
             return None
 
-    def update_dle_post(self, news_id, file_id, filename):
+    def update_dle_post(self, news_id, file_id, app_name, version, file_extension):
         """Обновляем поле apk-original в таблице dle_post"""
         try:
             cursor = self.connection.cursor()
@@ -125,8 +125,17 @@ class DatabaseManager:
 
             xfields = result[0]
 
+            # Формируем читаемое имя файла для attachment
+            # Переводим кириллицу в латиницу
+            readable_name = self._transliterate_cyrillic(app_name)
+            
+            # Формируем финальное имя: "app_name version.extension"
+            readable_filename = f"{readable_name} {version}{file_extension}"
+            
+            print(f"📝 Формируем читаемое имя для attachment: {readable_filename}")
+
             # Обновляем поле apk-original
-            new_attachment = f"[attachment={file_id}:{filename}]"
+            new_attachment = f"[attachment={file_id}:{readable_filename}]"
 
             # Ищем и заменяем существующее поле apk-original
             pattern = r'apk-original\|[^|]*\|\|'
@@ -144,12 +153,41 @@ class DatabaseManager:
             self.connection.commit()
             cursor.close()
 
-            print(f"✅ Обновлено поле apk-original для новости {news_id}")
+            print(f"✅ Обновлено поле apk-original для новости {news_id}: {new_attachment}")
             return True
 
         except Error as e:
             print(f"❌ Ошибка обновления dle_post: {e}")
             return False
+
+    def _transliterate_cyrillic(self, text):
+        """Переводим кириллицу в латиницу"""
+        cyrillic_to_latin = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+            'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+            'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+            'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+            'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+            'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
+            'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+            'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+            'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch',
+            'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
+        }
+        
+        result = ""
+        for char in text:
+            if char in cyrillic_to_latin:
+                result += cyrillic_to_latin[char]
+            elif char == '+':
+                result += ' '  # Заменяем + на пробелы
+            else:
+                result += char
+        
+        # Убираем множественные пробелы
+        result = re.sub(r'\s+', ' ', result).strip()
+        
+        return result
 
     def add_to_tracking(self, news_id, app_name, version, file_size, file_path, checksum, source_url):
         """Добавляем запись в таблицу отслеживания"""
@@ -173,4 +211,3 @@ class DatabaseManager:
         except Error as e:
             print(f"❌ Ошибка добавления в tracking: {e}")
             return False
-

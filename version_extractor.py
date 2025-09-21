@@ -172,7 +172,7 @@ class VersionExtractor:
         name = re.sub(r'_\d+\.\d+.*$', '', name)
         
         # Заменяем + на пробелы и убираем лишние символы
-        name = name.replace('+', ' ').replace('-', ' ')
+        name = name.replace('+-+', ' ').replace('+', ' ').replace('-', ' ')
         name = re.sub(r'\s+', ' ', name).strip()
         
         return name

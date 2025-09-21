@@ -113,11 +113,16 @@ class FileProcessor:
                 print("❌ Не удалось добавить файл в dle_files")
                 return False
 
-            # Обновляем dle_post
+            # Получаем расширение файла
+            file_extension = os.path.splitext(downloaded_file.name)[1]
+
+            # Обновляем dle_post с читаемым именем
             success = self.db.update_dle_post(
                 link_data['news_id'],
                 file_id,
-                downloaded_file.name
+                app_name,
+                final_version,
+                file_extension
             )
 
             if not success:
@@ -217,4 +222,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
