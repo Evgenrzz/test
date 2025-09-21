@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Основной модуль системы обработки файлов из step4_links.txt
-Скачивает файлы через парсер apkcombo и обновляет базу данных
+Скачивает файлы через парсеры APKCombo и APKPure и обновляет базу данных
 """
 import asyncio
 import os
@@ -10,6 +10,7 @@ from config import LINKS_FILE
 from database import DatabaseManager
 from version_extractor import VersionExtractor
 from file_downloader import FileDownloader
+from apkpure_downloader import APKPureDownloader
 
 
 class FileProcessor:
@@ -59,12 +60,16 @@ class FileProcessor:
         print(f"📱 Приложение: {app_name}")
         print(f"🔢 Версия из файла: {file_version}")
 
-        # Пытаемся получить версию со страницы
-        try:
-            page_version = await self.version_extractor.extract_version_from_page(link_data['url'])
-        except Exception as e:
-            print(f"⚠️ Ошибка получения версии со страницы: {e}")
-            page_version = None
+        # Пытаемся получить версию со страницы (только для APKCombo)
+        page_version = None
+        if 'apkcombo.com' in link_data['url']:
+            try:
+                page_version = await self.version_extractor.extract_version_from_page(link_data['url'])
+            except Exception as e:
+                print(f"⚠️ Ошибка получения версии со страницы APKCombo: {e}")
+                page_version = None
+        else:
+            print("ℹ️ Версия со страницы будет получена парсером APKPure")
 
         # Определяем финальную версию (ТОЛЬКО номер версии)
         final_version = self.version_extractor.get_version(link_data['filename'], page_version)
@@ -83,9 +88,19 @@ class FileProcessor:
             print("⏭️ Пропускаем, версия актуальна")
             return True
 
-        # Скачиваем файл
+        # Определяем тип парсера и скачиваем файл
         try:
-            downloaded_file, download_version = await self.downloader.download_from_apkcombo(link_data['url'])
+            if 'apkcombo.com' in link_data['url']:
+                print("🔧 Используем парсер APKCombo")
+                downloaded_file, download_version = await self.downloader.download_from_apkcombo(link_data['url'])
+            elif 'apkpure.com' in link_data['url']:
+                print("🔧 Используем парсер APKPure")
+                # Создаем APKPure downloader с той же папкой загрузки
+                apkpure_downloader = APKPureDownloader(self.downloader.download_dir)
+                downloaded_file, download_version = await apkpure_downloader.download_from_apkpure(link_data['url'])
+            else:
+                print(f"❌ Неподдерживаемый сайт: {link_data['url']}")
+                return False
 
             if not downloaded_file:
                 print("❌ Не удалось скачать файл")
@@ -184,9 +199,9 @@ class FileProcessor:
                 print(f"⚠️ Не удалось распарсить строку: {line.strip()}")
                 continue
 
-            # Проверяем что это apkcombo ссылка
-            if 'apkcombo.com' not in link_data['url']:
-                print(f"⏭️ Пропускаем не-apkcombo ссылку: {link_data['url']}")
+            # Проверяем что это поддерживаемая ссылка
+            if 'apkcombo.com' not in link_data['url'] and 'apkpure.com' not in link_data['url']:
+                print(f"⏭️ Пропускаем неподдерживаемую ссылку: {link_data['url']}")
                 continue
 
             try:
@@ -211,6 +226,9 @@ class FileProcessor:
 async def main():
     """Главная функция"""
     print("🚀 Запуск системы обработки файлов")
+    print("🌐 Поддерживаемые сайты:")
+    print("   📱 APKCombo.com - полная поддержка с извлечением версии")
+    print("   📱 APKPure.com - умный загрузчик APK/XAPK")
     print("📋 Исправлены все проблемы с записью данных в БД:")
     print("   ✅ file_tracking.version - только номер версии")
     print("   ✅ dle_files.onserver - имя как у загруженного файла")
