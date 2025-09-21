@@ -220,29 +220,29 @@ class APKPureDownloader:
         """Определяет приоритет скачивания на основе доступных форматов"""
         formats = {f.upper() for f in available_formats}
 
-        print(f"🧠 Анализируем форматы: {formats}")
+        print(f"🧠 Analyzing formats: {formats}")
 
-        # Логика приоритета:
-        # 1. Если есть APK - скачиваем только APK
-        # 2. Если есть XAPK но нет APK - скачиваем XAPK
-        # 3. Если XAPK + APKs - скачиваем XAPK
-        # 4. Если XAPK + APK + APKs - скачиваем только APK
+        # Priority logic:
+        # 1. If APK available - download only APK
+        # 2. If XAPK available but no APK - download XAPK
+        # 3. If XAPK + APKs - download XAPK
+        # 4. If XAPK + APK + APKs - download only APK
 
         if 'APK' in formats:
-            print("✅ Приоритет: APK (найден чистый APK)")
+            print("✅ Priority: APK (found clean APK)")
             return 'APK'
         elif 'XAPK' in formats and 'APK' not in formats:
-            print("✅ Приоритет: XAPK (APK недоступен)")
+            print("✅ Priority: XAPK (APK not available)")
             return 'XAPK'
         elif 'XAPK' in formats:
-            print("✅ Приоритет: XAPK (по умолчанию)")
+            print("✅ Priority: XAPK (default)")
             return 'XAPK'
         else:
-            print("⚠️ Приоритет: APK (fallback)")
+            print("⚠️ Priority: APK (fallback)")
             return 'APK'
 
     async def extract_version_from_page(self, app_url):
-        """Извлекаем версию со страницы приложения APKPure"""
+        """Extract version from APKPure app page"""
         try:
             # Убираем /download из URL если есть
             page_url = app_url.replace('/download', '')
