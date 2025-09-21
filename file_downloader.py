@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Модуль для скачивания файлов с apkcombo.com
+Модуль для скачивания файлов с APKCombo.com
+Интегрирован в систему обработки файлов
 """
 import asyncio
 import os
@@ -10,19 +11,12 @@ from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright
 from config import BROWSER_ARGS, USER_AGENT, BASE_DOWNLOAD_DIR, CLOUDFLARE_TIMEOUT, PAGE_LOAD_TIMEOUT, DOWNLOAD_TIMEOUT
+from file_normalizer import FileNormalizer
 
 
 class FileDownloader:
-    def __init__(self):
-        self.download_dir = self.get_current_download_dir()
-
-    def get_current_download_dir(self):
-        """Получаем папку для текущего месяца в формате год-месяц"""
-        now = datetime.now()
-        month_dir = f"{now.year}-{now.month:02d}"
-        full_path = Path(BASE_DOWNLOAD_DIR) / month_dir
-        full_path.mkdir(parents=True, exist_ok=True)
-        return full_path
+    def __init__(self, download_dir):
+        self.download_dir = download_dir
 
     def calculate_checksum(self, file_path):
         """Вычисляем MD5 чексумму файла"""
@@ -34,100 +28,38 @@ class FileDownloader:
 
     def normalize_filename(self, filename):
         """Нормализуем имя файла согласно требованиям"""
-        print(f"📝 Исходное имя файла: {filename}")
-
-        # Убираем "_apkcombo.com" из названия
-        filename = filename.replace('_apkcombo.com', '')
-
-        # Разделяем имя файла и расширение
-        name_part, extension = os.path.splitext(filename)
-
-        # Приводим к нижнему регистру
-        name_part = name_part.lower()
-        extension = extension.lower()
-
-        # Переводим кириллицу в латиницу
-        name_part = self._transliterate_cyrillic(name_part)
-
-        # Заменяем +-+ на подчеркивания
-        name_part = name_part.replace('+-+', '_')
-        name_part = name_part.replace('+', '_')
-        name_part = name_part.replace('-', '_')
-
-        # Заменяем пробелы на подчеркивания
-        name_part = name_part.replace(' ', '_')
-
-        # Заменяем точки на подчеркивания в имени файла (но не в расширении)
-        name_part = name_part.replace('.', '_')
-
-        # Убираем множественные подчеркивания
-        name_part = re.sub(r'_+', '_', name_part).strip('_')
-
-        # Собираем обратно с одной точкой перед расширением
-        normalized_filename = f"{name_part}{extension}"
-
-        print(f"📝 Нормализованное имя: {normalized_filename}")
-        return normalized_filename
-
-    def _transliterate_cyrillic(self, text):
-        """Переводим кириллицу в латиницу"""
-        cyrillic_to_latin = {
-            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
-            'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
-            'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-            'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
-            'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-            'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
-            'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
-            'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
-            'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch',
-            'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
-        }
-        
-        result = ""
-        for char in text:
-            if char in cyrillic_to_latin:
-                result += cyrillic_to_latin[char]
-            else:
-                result += char
-        
-        return result
+        return FileNormalizer.normalize_filename(filename)
 
     def format_filename_for_attachment(self, filename):
         """Форматируем имя файла для поля apk-original"""
-        print(f"📝 Форматируем для attachment: {filename}")
+        return FileNormalizer.format_filename_for_attachment(filename)
 
-        # Разделяем имя файла и расширение
-        name_part, extension = os.path.splitext(filename)
+    def extract_version_from_filename(self, filename):
+        """Извлекаем версию из имени файла"""
+        # Ищем паттерн версии в имени файла
+        version_patterns = [
+            r'_(\d+\.\d+\.\d+)',  # _5.0.0
+            r'_(\d+\.\d+)',       # _5.0
+            r'v(\d+\.\d+\.\d+)',  # v5.0.0
+            r'(\d+\.\d+\.\d+)',   # 5.0.0
+        ]
 
-        # Убираем подчеркивания и заменяем на пробелы
-        name_part = name_part.replace('_', ' ')
+        for pattern in version_patterns:
+            match = re.search(pattern, filename)
+            if match:
+                return match.group(1)
 
-        # Убираем лишние символы +-+
-        name_part = name_part.replace('+-+', ' ')
-        name_part = name_part.replace('+', ' ')
-        name_part = name_part.replace('-', ' ')
+        return "1.0.0"  # Версия по умолчанию
 
-        # Убираем множественные пробелы
-        name_part = re.sub(r'\s+', ' ', name_part).strip()
+    def extract_app_name_from_filename(self, filename):
+        """Извлекаем название приложения из имени файла"""
+        # Убираем расширение и версию
+        name = filename.replace('.xapk', '').replace('.apk', '')
+        # Убираем версию если есть
+        name = re.sub(r'_\d+\.\d+.*$', '', name)
+        return name
 
-        # Восстанавливаем точки в версии (ищем паттерны типа "1 8 3" и заменяем на "1.8.3")
-        # Ищем последовательности цифр разделенных пробелами в конце строки
-        version_pattern = r'(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?$'
-        match = re.search(version_pattern, name_part)
-        if match:
-            # Заменяем найденную версию на правильный формат с точками
-            version_parts = [part for part in match.groups() if part is not None]
-            version_str = '.'.join(version_parts)
-            name_part = re.sub(version_pattern, version_str, name_part)
-
-        # Собираем обратно
-        formatted_filename = f"{name_part}{extension}"
-
-        print(f"📝 Отформатированное имя: {formatted_filename}")
-        return formatted_filename
-
-    async def wait_for_cloudflare(self, page, max_wait=CLOUDFLARE_TIMEOUT):
+    async def wait_for_cloudflare(self, page, max_wait=120):
         """Ждем прохождения проверки Cloudflare"""
         print("🔄 Проверяем наличие Cloudflare...")
         for i in range(max_wait):
@@ -185,7 +117,7 @@ class FileDownloader:
 
         # Пытаемся перейти на страницу, но ожидаем, что может начаться загрузка
         try:
-            await page.goto(r2_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
+            await page.goto(r2_url, wait_until="domcontentloaded", timeout=30000)
         except Exception as e:
             if "Download is starting" in str(e):
                 print("✅ Загрузка началась сразу при переходе")
@@ -196,14 +128,14 @@ class FileDownloader:
         # Если загрузка не началась сразу, ждем прохождения Cloudflare
         if not download_started:
             print("🔄 Загрузка не началась сразу, проверяем Cloudflare...")
-            await self.wait_for_cloudflare(page, max_wait=CLOUDFLARE_TIMEOUT)
+            await self.wait_for_cloudflare(page, max_wait=120)
             # Ждем начала загрузки еще немного
-            for i in range(DOWNLOAD_TIMEOUT):
+            for i in range(30):
                 if download_started:
                     break
                 await asyncio.sleep(1)
                 if i % 5 == 0:
-                    print(f"   Ждем загрузку... ({i+1}/{DOWNLOAD_TIMEOUT})")
+                    print(f"   Ждем загрузку... ({i+1}/30)")
 
         if not download_started:
             raise Exception("Загрузка так и не началась")
@@ -242,25 +174,86 @@ class FileDownloader:
             print("❌ Файл не был сохранен")
             return None
 
+    async def extract_version_from_page(self, app_url):
+        """Извлекаем версию со страницы приложения"""
+        try:
+            print(f"🔍 Получаем версию со страницы: {app_url}")
+            
+            # Создаем браузер для получения версии
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=BROWSER_ARGS
+                )
+                context = await browser.new_context(
+                    user_agent=USER_AGENT
+                )
+                page = await context.new_page()
+                
+                try:
+                    await page.goto(app_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
+                    await self.wait_for_cloudflare(page, max_wait=60)
+                    await asyncio.sleep(3)
+
+                    # Ищем версию в div.version
+                    version_selectors = [
+                        'div.version',
+                        '.version',
+                        '[class*="version"]',
+                        '.app-version'
+                    ]
+                    
+                    for selector in version_selectors:
+                        try:
+                            element = await page.query_selector(selector)
+                            if element:
+                                version_text = await element.inner_text()
+                                # Извлекаем только номер версии
+                                version_match = re.search(r'(\d+\.\d+\.\d+)', version_text)
+                                if version_match:
+                                    version = version_match.group(1)
+                                    print(f"✅ Найдена версия на странице: {version}")
+                                    return version
+                        except:
+                            continue
+                    
+                    print("⚠️ Версия не найдена на странице")
+                    return None
+                    
+                finally:
+                    await context.close()
+                    await browser.close()
+                    
+        except Exception as e:
+            print(f"❌ Ошибка получения версии со страницы: {e}")
+            return None
+
     async def download_from_apkcombo(self, app_url):
         """Скачиваем файл с apkcombo.com"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
-                args=BROWSER_ARGS
+                args=[
+                    "--no-sandbox",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-dev-shm-usage"
+                ]
             )
             context = await browser.new_context(
                 accept_downloads=True,
-                user_agent=USER_AGENT
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
             page = await context.new_page()
 
             try:
                 print(f"📱 Открываем страницу приложения: {app_url}")
-                await page.goto(app_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
+                await page.goto(app_url, wait_until="domcontentloaded", timeout=60000)
                 # Ждем прохождения Cloudflare если есть
-                await self.wait_for_cloudflare(page, max_wait=CLOUDFLARE_TIMEOUT)
+                await self.wait_for_cloudflare(page, max_wait=60)
                 await asyncio.sleep(3)
+
+                # Получаем версию со страницы
+                page_version = await self.extract_version_from_page(app_url)
 
                 # Шаг 1: Ищем ссылку "Скачать APK"
                 print("🔍 Ищем ссылку 'Скачать APK'...")
@@ -303,8 +296,8 @@ class FileDownloader:
                 print(f"➡️ Ссылка на страницу загрузки: {download_page_url}")
 
                 # Шаг 2: Переходим на страницу загрузки
-                await page.goto(download_page_url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT)
-                await self.wait_for_cloudflare(page, max_wait=CLOUDFLARE_TIMEOUT)
+                await page.goto(download_page_url, wait_until="domcontentloaded", timeout=120000)
+                await self.wait_for_cloudflare(page, max_wait=60)
                 await asyncio.sleep(5)
 
                 # Шаг 3: Ищем первый вариант файла в ul.file-list
@@ -353,7 +346,11 @@ class FileDownloader:
 
                 # Шаг 4: Скачиваем файл по r2 ссылке
                 downloaded_file = await self.download_file_from_r2_url(page, r2_url)
-                return downloaded_file, version
+                
+                # Возвращаем версию со страницы если есть, иначе версию из файла
+                final_version = page_version if page_version else version
+                return downloaded_file, final_version
+                
             except Exception as e:
                 print(f"❌ Ошибка: {e}")
                 print(f"🔍 Текущий URL: {page.url}")
