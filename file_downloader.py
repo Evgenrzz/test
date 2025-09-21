@@ -54,6 +54,9 @@ class FileDownloader:
         name_part = name_part.replace('+', '_')
         name_part = name_part.replace('-', '_')
 
+        # Заменяем пробелы на подчеркивания
+        name_part = name_part.replace(' ', '_')
+
         # Заменяем точки на подчеркивания в имени файла (но не в расширении)
         name_part = name_part.replace('.', '_')
 
@@ -365,4 +368,3 @@ class FileDownloader:
                 await context.close()
                 await browser.close()
                 print("🔒 Браузер закрыт")
-
