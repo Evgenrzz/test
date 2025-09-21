@@ -68,12 +68,15 @@ class FileProcessor:
 
         # Определяем финальную версию (ТОЛЬКО номер версии)
         final_version = self.version_extractor.get_version(link_data['filename'], page_version)
+        
+        # Убеждаемся что это чистая версия
+        clean_version_for_check = self.version_extractor.extract_clean_version(final_version)
 
-        print(f"🏷️ Финальная версия (только номер): {final_version}")
+        print(f"🏷️ Финальная версия (только номер): {clean_version_for_check}")
 
         # Проверяем нужно ли обновление
         need_update, existing_data = self.db.check_if_update_needed(
-            link_data['news_id'], app_name, final_version
+            link_data['news_id'], app_name, clean_version_for_check
         )
 
         if not need_update:
@@ -90,8 +93,10 @@ class FileProcessor:
 
             # Если при скачивании получили версию, используем её
             if download_version and download_version != "Unknown":
-                final_version = download_version
-                print(f"🎯 Обновляем версию из процесса скачивания: {final_version}")
+                # Извлекаем только номер версии из download_version
+                clean_download_version = self.version_extractor.extract_clean_version(download_version)
+                clean_version_for_check = clean_download_version
+                print(f"🎯 Обновляем версию из процесса скачивания: {clean_version_for_check}")
 
             # Получаем информацию о файле
             file_size = downloaded_file.stat().st_size
@@ -99,17 +104,19 @@ class FileProcessor:
 
             print(f"📊 Размер файла: {file_size} байт")
             print(f"🔐 Чексумма: {checksum}")
-            print(f"🏷️ Финальная версия для БД: {final_version}")
+            print(f"🏷️ Финальная версия для БД: {clean_version_for_check}")
             print(f"📁 Загруженный файл: {downloaded_file.name}")
 
             # Получаем расширение файла
             file_extension = os.path.splitext(downloaded_file.name)[1]
-
+            
+            print(f"🏷️ Чистая версия для БД: {clean_version_for_check}")
+            
             # Добавляем в dle_files с правильными именами
             file_id = self.db.add_to_dle_files(
                 link_data['news_id'],
                 app_name,
-                final_version,
+                clean_version_for_check,
                 file_extension,
                 downloaded_file.name,  # Передаем имя загруженного файла
                 file_size,
@@ -126,7 +133,7 @@ class FileProcessor:
                 link_data['news_id'],
                 file_id,
                 app_name,
-                final_version,
+                clean_version_for_check,
                 file_extension
             )
 
@@ -138,14 +145,14 @@ class FileProcessor:
             self.db.add_to_tracking(
                 link_data['news_id'],
                 app_name,
-                final_version,  # ТОЛЬКО версия, например "1.8.3"
+                clean_version_for_check,  # ТОЛЬКО версия, например "1.8.3"
                 file_size,
                 downloaded_file,
                 checksum,
                 link_data['url']
             )
 
-            print(f"✅ Файл {downloaded_file.name} успешно обработан с версией {final_version}!")
+            print(f"✅ Файл {downloaded_file.name} успешно обработан с версией {clean_version_for_check}!")
             return True
 
         except Exception as e:
@@ -230,4 +237,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

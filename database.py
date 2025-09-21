@@ -80,23 +80,20 @@ class DatabaseManager:
             print(f"📝 Формируем читаемое имя для dle_files.name: {readable_filename}")
 
             # Для onserver используем точно такое же имя как у загруженного файла
-            # Убираем расширение из downloaded_filename и добавляем timestamp
-            downloaded_name_without_ext = downloaded_filename.replace(file_extension, '')
+            # БЕЗ timestamp - просто путь к реально загруженному файлу
+            relative_path = f"{download_dir.name}/{downloaded_filename}"
             
-            # Генерируем уникальное имя файла на сервере
-            timestamp = str(int(time.time()))
-            server_filename = f"{timestamp[:8]}_{downloaded_filename}"
-
-            # Относительный путь для базы данных
-            relative_path = f"{download_dir.name}/{server_filename}"
-            
-            print(f"🗂️ Имя файла на сервере (onserver): {server_filename}")
+            print(f"🗂️ Путь в onserver (без timestamp): {relative_path}")
+            print(f"📁 Загруженный файл: {downloaded_filename}")
 
             insert_query = """
             INSERT INTO dle_files (news_id, name, onserver, author, date, dcount, size, checksum, driver, is_public)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
 
+            # Генерируем timestamp для поля date
+            timestamp = str(int(time.time()))
+            
             values = (
                 news_id,
                 readable_filename,  # Читаемое имя в поле name
@@ -229,4 +226,3 @@ class DatabaseManager:
         except Error as e:
             print(f"❌ Ошибка добавления в tracking: {e}")
             return False
-

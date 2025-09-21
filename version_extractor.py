@@ -144,14 +144,37 @@ class VersionExtractor:
         print("⚠️ Превышено время ожидания Cloudflare")
         return False
 
+    def extract_clean_version(self, version_text):
+        """Извлекаем только номер версии из любого текста"""
+        if not version_text:
+            return "1.0.0"
+        
+        # Ищем паттерн версии в тексте
+        version_patterns = [
+            r'(\d+\.\d+\.\d+\.\d+)',  # 1.2.3.4
+            r'(\d+\.\d+\.\d+)',       # 1.2.3
+            r'(\d+\.\d+)',            # 1.2
+        ]
+
+        for pattern in version_patterns:
+            match = re.search(pattern, version_text)
+            if match:
+                clean_version = match.group(1)
+                print(f"🧹 Извлечена чистая версия: {clean_version} из '{version_text}'")
+                return clean_version
+
+        print(f"⚠️ Не удалось извлечь версию из '{version_text}', используем 1.0.0")
+        return "1.0.0"
+
     def get_version(self, filename, page_version=None):
         """Определяем финальную версию для использования"""
         # Приоритет: версия со страницы > версия из файла
         if page_version:
-            print(f"🎯 Используем версию со страницы: {page_version}")
-            return page_version
+            clean_page_version = self.extract_clean_version(page_version)
+            print(f"🎯 Используем версию со страницы: {clean_page_version}")
+            return clean_page_version
         
         file_version = self.extract_version_from_filename(filename)
-        print(f"📁 Используем версию из файла: {file_version}")
-        return file_version
-
+        clean_file_version = self.extract_clean_version(file_version)
+        print(f"📁 Используем версию из файла: {clean_file_version}")
+        return clean_file_version
