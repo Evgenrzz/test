@@ -99,10 +99,15 @@ class FileProcessor:
             print(f"🔐 Чексумма: {checksum}")
             print(f"🏷️ Финальная версия для БД: {final_version}")
 
-            # Добавляем в dle_files
+            # Получаем расширение файла
+            file_extension = os.path.splitext(downloaded_file.name)[1]
+
+            # Добавляем в dle_files с читаемым именем
             file_id = self.db.add_to_dle_files(
                 link_data['news_id'],
-                downloaded_file.name,
+                app_name,
+                final_version,
+                file_extension,
                 str(downloaded_file),
                 file_size,
                 checksum,
@@ -113,10 +118,7 @@ class FileProcessor:
                 print("❌ Не удалось добавить файл в dle_files")
                 return False
 
-            # Получаем расширение файла
-            file_extension = os.path.splitext(downloaded_file.name)[1]
-
-            # Обновляем dle_post с читаемым именем
+            # Обновляем dle_post с читаемым именем (расширение уже получено выше)
             success = self.db.update_dle_post(
                 link_data['news_id'],
                 file_id,

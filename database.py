@@ -67,14 +67,21 @@ class DatabaseManager:
             print(f"❌ Ошибка проверки версии: {e}")
             return True, None
 
-    def add_to_dle_files(self, news_id, filename, file_path, file_size, checksum, download_dir):
+    def add_to_dle_files(self, news_id, app_name, version, file_extension, file_path, file_size, checksum, download_dir):
         """Добавляем запись в таблицу dle_files"""
         try:
             cursor = self.connection.cursor()
 
-            # Генерируем уникальное имя файла на сервере
+            # Формируем читаемое имя файла (такое же как в file_tracking)
+            # Переводим кириллицу в латиницу
+            readable_name = self._transliterate_cyrillic(app_name)
+            readable_filename = f"{readable_name} {version}{file_extension}"
+            
+            print(f"📝 Формируем читаемое имя для dle_files: {readable_filename}")
+
+            # Генерируем уникальное имя файла на сервере (тоже читаемое)
             timestamp = str(int(time.time()))
-            server_filename = f"{timestamp[:8]}_{filename}"
+            server_filename = f"{timestamp[:8]}_{readable_filename}"
 
             # Относительный путь для базы данных
             relative_path = f"{download_dir.name}/{server_filename}"
@@ -86,8 +93,8 @@ class DatabaseManager:
 
             values = (
                 news_id,
-                filename,
-                relative_path,
+                readable_filename,  # Читаемое имя в поле name
+                relative_path,      # Путь с читаемым именем в поле onserver
                 'app4ok',
                 timestamp,
                 0,
@@ -103,6 +110,8 @@ class DatabaseManager:
             cursor.close()
 
             print(f"✅ Файл добавлен в dle_files с ID: {file_id}")
+            print(f"📁 name: {readable_filename}")
+            print(f"🗂️ onserver: {relative_path}")
             return file_id
 
         except Error as e:
