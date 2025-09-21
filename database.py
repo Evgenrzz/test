@@ -79,12 +79,20 @@ class DatabaseManager:
             
             print(f"📝 Формируем читаемое имя для dle_files: {readable_filename}")
 
-            # Генерируем уникальное имя файла на сервере (тоже читаемое)
+            # Формируем имя файла для сервера (без пробелов и точек)
+            server_readable_name = readable_name.replace(' ', '_').replace('.', '_')
+            server_version = version.replace('.', '_')
+            server_extension = file_extension.replace('.', '_')
+            server_filename_clean = f"{server_readable_name}_{server_version}{file_extension}"
+            
+            # Генерируем уникальное имя файла на сервере
             timestamp = str(int(time.time()))
-            server_filename = f"{timestamp[:8]}_{readable_filename}"
+            server_filename = f"{timestamp[:8]}_{server_filename_clean}"
 
             # Относительный путь для базы данных
             relative_path = f"{download_dir.name}/{server_filename}"
+            
+            print(f"🗂️ Имя файла на сервере: {server_filename}")
 
             insert_query = """
             INSERT INTO dle_files (news_id, name, onserver, author, date, dcount, size, checksum, driver, is_public)
